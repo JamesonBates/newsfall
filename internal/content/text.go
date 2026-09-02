@@ -17,6 +17,9 @@ var (
 
 // CleanText converts hostile or messy feed HTML into terminal-safe plain text.
 func CleanText(value string) string {
+	// Atom and JSON feeds often entity-escape embedded HTML. Decode first so
+	// the same sanitization path removes both literal and escaped markup.
+	value = html.UnescapeString(value)
 	value = scriptBlock.ReplaceAllString(value, " ")
 	value = styleBlock.ReplaceAllString(value, " ")
 	value = ansiOSC.ReplaceAllString(value, "")
