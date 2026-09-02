@@ -1,0 +1,89 @@
+package app
+
+import (
+	"testing"
+)
+
+func TestInteractionHandlesNavigationOpeningAndQuickToggles(t *testing.T) {
+	interaction := NewInteraction(controllerFixture())
+	interaction.Handle(Key{Kind: KeyRune, Rune: 'j'})
+	article, _ := interaction.Controller.SelectedArticle()
+	if article.ID != "ai-old" {
+		t.Fatalf("j selected %s", article.ID)
+	}
+	interaction.Handle(Key{Kind: KeyRune, Rune: 'l'})
+	outcome := interaction.Handle(Key{Kind: KeyEnter})
+	if outcome.OpenURL != "https://example.com/car" {
+		t.Fatalf("open = %#v", outcome)
+	}
+	outcome = interaction.Handle(Key{Kind: KeyRune, Rune: 'm'})
+	if !outcome.SaveConfig || interaction.Controller.Config.Mode != "stream" {
+		t.Fatalf("mode = %#v %s", outcome, interaction.Controller.Config.Mode)
+	}
+	outcome = interaction.Handle(Key{Kind: KeyTab})
+	if !outcome.SaveConfig || interaction.Controller.Config.Theme != "ember" {
+		t.Fatalf("theme = %#v %s", outcome, interaction.Controller.Config.Theme)
+	}
+	outcome = interaction.Handle(Key{Kind: KeyRune, Rune: 'p'})
+	if outcome.SaveConfig || !interaction.Paused {
+		t.Fatalf("pause = %#v paused=%v", outcome, interaction.Paused)
+	}
+	outcome = interaction.Handle(Key{Kind: KeyRune, Rune: 'r'})
+	if !outcome.Refresh {
+		t.Fatalf("refresh = %#v", outcome)
+	}
+}
+
+func TestInteractionCommandModeAppliesQuotedConfigCommand(t *testing.T) {
+	interaction := NewInteraction(controllerFixture())
+	interaction.Handle(Key{Kind: KeyRune, Rune: ':'})
+	for _, r := range `feed add https://example.com/rss "Example Wire" ai` {
+		outcome := interaction.Handle(Key{Kind: KeyRune, Rune: r})
+		if outcome.Quit {
+			t.Fatal("typing q in a command must not quit")
+		}
+	}
+	outcome := interaction.Handle(Key{Kind: KeyEnter})
+	if !outcome.SaveConfig || !outcome.Refresh || interaction.CommandMode {
+		t.Fatalf("outcome = %#v command=%v", outcome, interaction.CommandMode)
+	}
+	feeds := interaction.Controller.Config.Feeds
+	if len(feeds) != 1 || feeds[0].Name != "Example Wire" {
+		t.Fatalf("feeds = %#v", feeds)
+	}
+}
+
+func TestInteractionShowsListResultsAndActionableCommandErrors(t *testing.T) {
+	interaction := NewInteraction(controllerFixture())
+	interaction.CommandMode = true
+	interaction.CommandText = "column list"
+	outcome := interaction.Handle(Key{Kind: KeyEnter})
+	if outcome.SaveConfig || interaction.OverlayTitle == "" || len(interaction.OverlayLines) != 2 {
+		t.Fatalf("list = %#v title=%q lines=%#v", outcome, interaction.OverlayTitle, interaction.OverlayLines)
+	}
+	interaction.Handle(Key{Kind: KeyEscape})
+	if len(interaction.OverlayLines) != 0 {
+		t.Fatal("escape should dismiss overlay")
+	}
+	interaction.CommandMode = true
+	interaction.CommandText = "theme radioactive"
+	outcome = interaction.Handle(Key{Kind: KeyEnter})
+	if outcome.SaveConfig || interaction.Status == "" {
+		t.Fatalf("invalid command = %#v status=%q", outcome, interaction.Status)
+	}
+}
+
+func TestInteractionHelpEscapeAndQuitSemantics(t *testing.T) {
+	interaction := NewInteraction(controllerFixture())
+	interaction.Handle(Key{Kind: KeyRune, Rune: '?'})
+	if !interaction.Help {
+		t.Fatal("help not shown")
+	}
+	interaction.Handle(Key{Kind: KeyEscape})
+	if interaction.Help {
+		t.Fatal("help not dismissed")
+	}
+	if !interaction.Handle(Key{Kind: KeyRune, Rune: 'q'}).Quit {
+		t.Fatal("q should quit outside command mode")
+	}
+}

@@ -28,3 +28,11 @@ func TestCanonicalURLRemovesOnlyTrackingNoise(t *testing.T) {
 		t.Fatalf("CanonicalURL = %q, want %q", got, want)
 	}
 }
+
+func TestCanonicalURLRejectsNonWebSchemes(t *testing.T) {
+	for _, raw := range []string{"javascript://example.com/alert", "file://example.com/story", "ftp://example.com/story"} {
+		if got := CanonicalURL(raw); got != "" {
+			t.Fatalf("CanonicalURL(%q) = %q, want empty", raw, got)
+		}
+	}
+}

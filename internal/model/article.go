@@ -39,10 +39,13 @@ func StableID(guid, rawURL, title string, published time.Time) string {
 
 func CanonicalURL(raw string) string {
 	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || u.Scheme == "" || u.Host == "" {
+	if err != nil || u.Host == "" {
 		return ""
 	}
 	u.Scheme = strings.ToLower(u.Scheme)
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return ""
+	}
 	u.Host = strings.ToLower(u.Host)
 	u.Fragment = ""
 	if u.Path != "/" {

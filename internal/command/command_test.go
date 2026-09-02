@@ -86,12 +86,19 @@ func TestApplyManagesColumnsAndTopics(t *testing.T) {
 	if got := cfg.Columns[0].Include; !reflect.DeepEqual(got, []string{"space", "machine learning"}) {
 		t.Fatalf("topics = %#v", got)
 	}
+	cfg, _, err = Execute(cfg, `column add inbox INBOX`)
+	if err != nil {
+		t.Fatalf("second column add: %v", err)
+	}
 	cfg, _, err = Execute(cfg, `column remove science`)
 	if err != nil {
 		t.Fatalf("column remove: %v", err)
 	}
-	if len(cfg.Columns) != 0 {
+	if len(cfg.Columns) != 1 || cfg.Columns[0].ID != "inbox" {
 		t.Fatalf("columns = %#v", cfg.Columns)
+	}
+	if _, _, err := Execute(cfg, `column remove inbox`); err == nil {
+		t.Fatal("removing the final column should fail")
 	}
 }
 

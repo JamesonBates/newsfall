@@ -98,6 +98,9 @@ func Validate(cfg *Config) error {
 	if cfg.MaxPerColumn <= 0 {
 		cfg.MaxPerColumn = 80
 	}
+	if len(cfg.Columns) < 1 || len(cfg.Columns) > 3 {
+		return fmt.Errorf("Newsfall requires between 1 and 3 columns; got %d", len(cfg.Columns))
+	}
 	if cfg.Mode != "deck" && cfg.Mode != "stream" {
 		return fmt.Errorf("unsupported mode %q", cfg.Mode)
 	}

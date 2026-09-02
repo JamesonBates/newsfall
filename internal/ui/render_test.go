@@ -79,3 +79,13 @@ func TestDemoStateProducesAUsefulOfflineSnapshot(t *testing.T) {
 		t.Fatalf("demo snapshot is not representative:\n%s", got)
 	}
 }
+
+func TestRenderOverlayShowsCommandResults(t *testing.T) {
+	state := sampleState(92, 28)
+	state.OverlayTitle = "CONFIGURED FEEDS"
+	state.OverlayLines = []string{"Hacker News  https://hnrss.org/frontpage", "BMWBLOG  https://www.bmwblog.com/feed/"}
+	plain := RenderPlain(state)
+	if !strings.Contains(plain, "CONFIGURED FEEDS") || !strings.Contains(plain, "Hacker News") || !strings.Contains(plain, "BMWBLOG") {
+		t.Fatalf("overlay missing:\n%s", plain)
+	}
+}

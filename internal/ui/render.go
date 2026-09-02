@@ -37,6 +37,8 @@ type State struct {
 	Help           bool
 	CommandMode    bool
 	CommandText    string
+	OverlayTitle   string
+	OverlayLines   []string
 	Status         string
 	Errors         []string
 	LastRefresh    time.Time
@@ -69,7 +71,9 @@ func render(state State, colorEnabled bool) string {
 
 	lines := make([]string, 0, state.Height)
 	lines = append(lines, renderHeader(state, layout, theme, colorEnabled)...)
-	if state.Help {
+	if len(state.OverlayLines) > 0 {
+		lines = append(lines, renderOverlay(layout.Width, layout.ContentHeight, state.OverlayTitle, state.OverlayLines, theme, colorEnabled)...)
+	} else if state.Help {
 		lines = append(lines, renderHelp(layout.Width, layout.ContentHeight, theme, colorEnabled)...)
 	} else if state.Config.Mode == "stream" {
 		lines = append(lines, renderStream(state, layout, theme, colorEnabled)...)
@@ -437,6 +441,53 @@ func renderEmpty(width, height int, title, detail string, theme Theme, colorEnab
 	}
 	if mid+1 < height {
 		lines[mid+1] = center(styleFG(colorEnabled, theme.Muted, detail), width)
+	}
+	return lines
+}
+
+func renderOverlay(width, height int, title string, rows []string, theme Theme, colorEnabled bool) []string {
+	if width < 28 || height < 5 {
+		return renderEmpty(width, height, firstNonEmpty(title, "RESULT"), firstNonEmpty(rows...), theme, colorEnabled)
+	}
+	if title == "" {
+		title = "COMMAND RESULT"
+	}
+	boxWidth := minInt(width, 104)
+	inner := boxWidth - 2
+	var body []string
+	for _, row := range rows {
+		wrapped := WrapText(content.CleanText(row), maxInt(1, inner-2), 3)
+		if len(wrapped) == 0 {
+			wrapped = []string{""}
+		}
+		body = append(body, wrapped...)
+	}
+	maxBody := maxInt(1, height-4)
+	if len(body) > maxBody {
+		body = body[:maxBody]
+		if len(body) > 0 {
+			body[len(body)-1] = FitANSI(body[len(body)-1]+" …", maxInt(1, inner-2))
+		}
+	}
+	label := " " + content.CleanText(title) + " "
+	fill := maxInt(0, inner-VisibleWidth(label)-1)
+	box := []string{styleFG(colorEnabled, theme.Accent, "╭─") + styleBold(colorEnabled, styleFG(colorEnabled, theme.Accent, label)) + styleFG(colorEnabled, theme.Faint, strings.Repeat("─", fill)+"╮")}
+	for _, row := range body {
+		box = append(box, boxBody(" "+styleFG(colorEnabled, theme.Text, row), inner, theme.Faint, colorEnabled))
+	}
+	box = append(box, boxBody(" "+styleFG(colorEnabled, theme.Muted, "esc dismisses this panel"), inner, theme.Faint, colorEnabled))
+	box = append(box, styleFG(colorEnabled, theme.Faint, "╰"+strings.Repeat("─", inner)+"╯"))
+	for i := range box {
+		box[i] = FitANSI(box[i], boxWidth)
+	}
+	lines := make([]string, height)
+	for i := range lines {
+		lines[i] = strings.Repeat(" ", width)
+	}
+	startY := maxInt(0, (height-len(box))/2)
+	startX := maxInt(0, (width-boxWidth)/2)
+	for i := 0; i < len(box) && startY+i < height; i++ {
+		lines[startY+i] = strings.Repeat(" ", startX) + box[i] + strings.Repeat(" ", maxInt(0, width-startX-boxWidth))
 	}
 	return lines
 }

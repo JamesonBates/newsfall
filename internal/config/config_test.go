@@ -75,6 +75,18 @@ func TestValidateRejectsDuplicatesAndUnknownColumn(t *testing.T) {
 	}
 }
 
+func TestValidateRequiresOneToThreeColumns(t *testing.T) {
+	tests := []Config{
+		{},
+		{Columns: []Column{{ID: "one"}, {ID: "two"}, {ID: "three"}, {ID: "four"}}},
+	}
+	for i := range tests {
+		if err := Validate(&tests[i]); err == nil {
+			t.Fatalf("case %d: expected column-count validation error", i)
+		}
+	}
+}
+
 func TestSaveLoadRoundTripAndMissingDefault(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "config.json")
 	cfg, err := Load(path)
