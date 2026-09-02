@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "refresh": "5m",
+  "drift": "12s",
+  "mode": "deck",
+  "theme": "aurora",
+  "images": true,
+  "ambient": true,
+  "max_items": 240,
+  "max_per_column": 80,
+  "columns": [
+    {
+      "id": "ai",
+      "title": "AI + TECH",
+      "include": [
+        "AI",
+        "artificial intelligence",
+        "OpenAI",
+        "Anthropic",
+        "LLM",
+        "agent",
+        "ChatGPT",
+        "Codex",
+        "model"
+      ],
+      "accent": "#8B5CF6"
+    },
+    {
+      "id": "machines",
+      "title": "MACHINES",
+      "accent": "#22D3EE"
+    },
+    {
+      "id": "games",
+      "title": "GAMES + CULTURE",
+      "accent": "#F97316"
+    }
+  ],
+  "feeds": [
+    {
+      "name": "Hacker News",
+      "url": "https://hnrss.org/frontpage",
+      "columns": ["ai"],
+      "tags": ["technology"]
+    },
+    {
+      "name": "The Verge",
+      "url": "https://www.theverge.com/rss/index.xml",
+      "columns": ["ai"],
+      "tags": ["technology"]
+    },
+    {
+      "name": "BMWBLOG",
+      "url": "https://www.bmwblog.com/feed/",
+      "columns": ["machines"],
+      "tags": ["automotive", "BMW"]
+    },
+    {
+      "name": "The Drive",
+      "url": "https://www.thedrive.com/feed",
+      "columns": ["machines"],
+      "tags": ["automotive"]
+    },
+    {
+      "name": "IGN",
+      "url": "https://feeds.feedburner.com/ign/all",
+      "columns": ["games"],
+      "tags": ["games"]
+    },
+    {
+      "name": "Polygon",
+      "url": "https://www.polygon.com/rss/index.xml",
+      "columns": ["games"],
+      "tags": ["games", "culture"]
+    }
+  ]
+}

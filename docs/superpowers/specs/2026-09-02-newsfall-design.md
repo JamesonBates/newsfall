@@ -38,7 +38,7 @@ Remote text is HTML-decoded, stripped of markup, normalized, and scrubbed of ter
 
 ## Defaults
 
-The first config contains three personalized starter columns: `AI + TECH`, `MACHINES`, and `GAMES + CULTURE`, with public starter feeds that can be removed immediately. An empty configuration displays setup instructions instead of failing.
+The first config contains three personalized starter columns: `AI + TECH`, `MACHINES`, and `GAMES + CULTURE`, with public starter feeds that can be removed immediately. An empty feed list displays setup instructions instead of failing; the desk itself always retains one to three columns.
 
 ## First-release limits
 
