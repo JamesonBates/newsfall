@@ -89,3 +89,31 @@ func TestRenderOverlayShowsCommandResults(t *testing.T) {
 		t.Fatalf("overlay missing:\n%s", plain)
 	}
 }
+
+func TestRenderEveryResponsiveBreakpointHasExactGeometry(t *testing.T) {
+	widths := []int{1, 20, 55, 56, 85, 86, 131, 132, 180}
+	heights := []int{1, 5, 11, 17, 18, 40}
+	modes := []string{"deck", "stream"}
+	themes := []string{"aurora", "ember", "ocean", "mono"}
+	for _, width := range widths {
+		for _, height := range heights {
+			for _, mode := range modes {
+				for _, theme := range themes {
+					state := sampleState(width, height)
+					state.Config.Mode = mode
+					state.Config.Theme = theme
+					got := RenderPlain(state)
+					lines := strings.Split(got, "\n")
+					if len(lines) != height {
+						t.Fatalf("%dx%d %s/%s height = %d", width, height, mode, theme, len(lines))
+					}
+					for row, line := range lines {
+						if gotWidth := VisibleWidth(line); gotWidth != width {
+							t.Fatalf("%dx%d %s/%s row %d width = %d", width, height, mode, theme, row, gotWidth)
+						}
+					}
+				}
+			}
+		}
+	}
+}
