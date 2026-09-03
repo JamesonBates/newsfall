@@ -1,6 +1,6 @@
 # NEWSFALL
 
-**An ambient signal desk for your terminal.** Newsfall is part TweetDeck, part RSS reader, and part animated desktop object: a colorful one-, two-, or three-column news stream designed to stay open beside tools such as `btop`.
+**An ambient signal desk for your terminal.** Newsfall is part News Ticker, part RSS reader, and part animated desktop object: a colorful one-, two-, or three-column news stream designed to stay open beside tools such as `btop`.
 
 ![Newsfall deck preview](assets/newsfall-preview.png)
 
