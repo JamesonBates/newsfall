@@ -197,3 +197,26 @@ func TestApplyListsAndReportsActionableErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestApplyCardsSettingSupportsAutoAndOneToEight(t *testing.T) {
+	cfg := config.Default()
+	got, effect, err := Execute(cfg, "cards 5")
+	if err != nil {
+		t.Fatalf("cards 5: %v", err)
+	}
+	if got.Cards != 5 || !effect.Save || !strings.Contains(effect.Message, "5") {
+		t.Fatalf("cards 5 => %#v %#v", got, effect)
+	}
+	got, effect, err = Execute(got, "cards auto")
+	if err != nil {
+		t.Fatalf("cards auto: %v", err)
+	}
+	if got.Cards != 0 || !effect.Save || !strings.Contains(strings.ToLower(effect.Message), "auto") {
+		t.Fatalf("cards auto => %#v %#v", got, effect)
+	}
+	for _, line := range []string{"cards 0", "cards 9", "cards many"} {
+		if _, _, err := Execute(cfg, line); err == nil {
+			t.Fatalf("%q expected error", line)
+		}
+	}
+}

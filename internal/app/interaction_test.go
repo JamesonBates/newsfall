@@ -108,3 +108,32 @@ func TestInteractionHelpEscapeAndQuitSemantics(t *testing.T) {
 		t.Fatal("q should quit outside command mode")
 	}
 }
+
+func TestCardDensityShortcutsPersistAndClamp(t *testing.T) {
+	interaction := NewInteraction(controllerFixture())
+	if got := interaction.Controller.Config.Cards; got != 0 {
+		t.Fatalf("initial cards = %d", got)
+	}
+	out := interaction.Handle(Key{Kind: KeyRune, Rune: ']'})
+	if interaction.Controller.Config.Cards != 4 || !out.SaveConfig {
+		t.Fatalf("] => cards=%d outcome=%#v", interaction.Controller.Config.Cards, out)
+	}
+	out = interaction.Handle(Key{Kind: KeyRune, Rune: '['})
+	if interaction.Controller.Config.Cards != 3 || !out.SaveConfig {
+		t.Fatalf("[ => cards=%d outcome=%#v", interaction.Controller.Config.Cards, out)
+	}
+	out = interaction.Handle(Key{Kind: KeyRune, Rune: '0'})
+	if interaction.Controller.Config.Cards != 0 || !out.SaveConfig {
+		t.Fatalf("0 => cards=%d outcome=%#v", interaction.Controller.Config.Cards, out)
+	}
+	interaction.Controller.Config.Cards = 8
+	interaction.Handle(Key{Kind: KeyRune, Rune: ']'})
+	if interaction.Controller.Config.Cards != 8 {
+		t.Fatalf("cards should clamp at 8, got %d", interaction.Controller.Config.Cards)
+	}
+	interaction.Controller.Config.Cards = 1
+	interaction.Handle(Key{Kind: KeyRune, Rune: '['})
+	if interaction.Controller.Config.Cards != 1 {
+		t.Fatalf("cards should clamp at 1, got %d", interaction.Controller.Config.Cards)
+	}
+}

@@ -25,6 +25,7 @@ type Config struct {
 	Theme        string   `json:"theme"`
 	Images       bool     `json:"images"`
 	Ambient      bool     `json:"ambient"`
+	Cards        int      `json:"cards"`
 	MaxItems     int      `json:"max_items"`
 	MaxPerColumn int      `json:"max_per_column"`
 	Columns      []Column `json:"columns"`
@@ -55,6 +56,7 @@ func Default() Config {
 		Theme:        "aurora",
 		Images:       true,
 		Ambient:      true,
+		Cards:        0,
 		MaxItems:     240,
 		MaxPerColumn: 80,
 		Columns: []Column{
@@ -91,6 +93,9 @@ func Validate(cfg *Config) error {
 	}
 	if cfg.Theme == "" {
 		cfg.Theme = "aurora"
+	}
+	if cfg.Cards < 0 || cfg.Cards > 8 {
+		return fmt.Errorf("cards must be auto (0) or between 1 and 8; got %d", cfg.Cards)
 	}
 	if cfg.MaxItems <= 0 {
 		cfg.MaxItems = 240

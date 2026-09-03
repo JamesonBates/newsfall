@@ -72,6 +72,8 @@ newsfall
 
 ### Upgrading
 
+Version 0.1.3 adds responsive card-density controls: `cards auto|1-8`, `[` / `]` to adjust density live, and `0` to return to automatic sizing. Automatic mode now grows the number of visible cards as terminal height increases.
+
 Version 0.1.2 makes source setup substantially more forgiving: ordinary website URLs are discovered automatically, multiword source names can be entered without quoting, and failed sources expose their exact error through `e` or `:feed errors`. Replace the binary in place; configuration and cached articles are preserved.
 
 Adding a source while the startup synchronization is still running now queues an immediate follow-up refresh. Earlier builds discarded that refresh request, which could make a correctly added source appear inert until the next scheduled cycle.
@@ -107,6 +109,8 @@ Newsfall uses the terminal's alternate screen, restores terminal settings on exi
 | `a` | Toggle ambient drift |
 | `m` | Toggle deck / stream mode |
 | `i` | Toggle article-image loading |
+| `[` / `]` | Decrease / increase visible cards per column |
+| `0` | Return card density to automatic sizing |
 | `tab` | Cycle the theme |
 | `:` | Open the command line |
 | `?` | Open or close help |
@@ -134,6 +138,8 @@ topic remove ai robotics
 refresh 5m
 refresh now
 drift 12s
+cards auto
+cards 5
 theme ocean
 mode stream
 images off
@@ -158,6 +164,8 @@ When a feed is pinned, its stories are eligible only for those columns and still
 
 Newsfall intentionally supports **one to three columns**. This keeps cards readable and preserves the dashboard feel instead of turning the terminal into a wall of narrow text.
 
+Card density is independent of column count. `cards auto` (the default) chooses a useful number of cards from the current terminal height. `cards 1` through `cards 8` force that many visible cards per column when enough stories are available. As cards get shorter, Newsfall progressively removes artwork, excerpts, and tags before sacrificing headline/source/time context.
+
 ## Configure it from the shell
 
 Every in-app command can also be applied noninteractively:
@@ -168,6 +176,7 @@ newsfall --command 'feed add https://example.com/feed.xml "Example Wire" ai'
 newsfall --command 'topic add ai robotics agents'
 newsfall --command 'theme ember'
 newsfall --command 'refresh 10m'
+newsfall --command 'cards 5'
 ```
 
 Useful CLI options:

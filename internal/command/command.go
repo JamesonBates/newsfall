@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -78,6 +79,8 @@ func Apply(cfg config.Config, cmd Command) (config.Config, Effect, error) {
 		next, effect, err = applyToggle(next, "images", cmd.Args)
 	case "ambient":
 		next, effect, err = applyToggle(next, "ambient", cmd.Args)
+	case "cards":
+		next, effect, err = applyCards(next, cmd.Args)
 	case "reload":
 		if len(cmd.Args) != 0 {
 			err = errors.New("usage: reload")
@@ -287,6 +290,23 @@ func applySingleSetting(cfg config.Config, name string, args []string) (config.C
 	return cfg, Effect{Save: true, Message: name + " set to " + value}, nil
 }
 
+func applyCards(cfg config.Config, args []string) (config.Config, Effect, error) {
+	if len(args) != 1 {
+		return cfg, Effect{}, errors.New("usage: cards auto|1-8")
+	}
+	value := strings.ToLower(strings.TrimSpace(args[0]))
+	if value == "auto" {
+		cfg.Cards = 0
+		return cfg, Effect{Save: true, Message: "cards set to auto"}, nil
+	}
+	cards, err := strconv.Atoi(value)
+	if err != nil || cards < 1 || cards > 8 {
+		return cfg, Effect{}, fmt.Errorf("cards must be auto or a number from 1 to 8; got %q", args[0])
+	}
+	cfg.Cards = cards
+	return cfg, Effect{Save: true, Message: fmt.Sprintf("cards set to %d", cards)}, nil
+}
+
 func applyToggle(cfg config.Config, name string, args []string) (config.Config, Effect, error) {
 	if len(args) != 1 {
 		return cfg, Effect{}, fmt.Errorf("usage: %s on|off", name)
@@ -468,6 +488,7 @@ func HelpLines() []string {
 		"topic add|remove <column> <term…>  edit column matching",
 		"refresh <duration>|now             set cadence or fetch now",
 		"drift <duration>                   set ambient card cadence",
+		"cards auto|1-8                     set visible cards per column",
 		"theme aurora|ember|ocean|mono      choose a color system",
 		"mode deck|stream                   choose the layout",
 		"images on|off                      toggle image mosaics",

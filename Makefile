@@ -1,6 +1,6 @@
 SHELL := /bin/sh
 BINARY := newsfall
-VERSION := 0.1.2
+VERSION := 0.1.3
 LDFLAGS := -s -w
 
 .PHONY: build test race snapshot release checksums clean

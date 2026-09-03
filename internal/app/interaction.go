@@ -138,8 +138,38 @@ func (i *Interaction) handleRune(r rune) Outcome {
 		i.Controller.Config.Images = !i.Controller.Config.Images
 		i.Status = "article images " + boolLabel(i.Controller.Config.Images)
 		return Outcome{SaveConfig: true}
+	case ']':
+		return i.adjustCards(1)
+	case '[':
+		return i.adjustCards(-1)
+	case '0':
+		i.Controller.Config.Cards = 0
+		i.Status = "cards · auto"
+		return Outcome{SaveConfig: true}
 	}
 	return Outcome{}
+}
+
+func (i *Interaction) adjustCards(delta int) Outcome {
+	cards := i.Controller.Config.Cards
+	if cards == 0 {
+		if delta > 0 {
+			cards = 4
+		} else {
+			cards = 2
+		}
+	} else {
+		cards += delta
+	}
+	if cards < 1 {
+		cards = 1
+	}
+	if cards > 8 {
+		cards = 8
+	}
+	i.Controller.Config.Cards = cards
+	i.Status = fmt.Sprintf("cards · %d  ·  0 returns to auto", cards)
+	return Outcome{SaveConfig: true}
 }
 
 func (i *Interaction) handleCommandKey(key Key) Outcome {

@@ -110,3 +110,24 @@ func TestSaveLoadRoundTripAndMissingDefault(t *testing.T) {
 		t.Fatalf("round trip mismatch: %#v", got)
 	}
 }
+
+func TestCardsDefaultsToAutoAndValidatesOneToEight(t *testing.T) {
+	cfg := Default()
+	if cfg.Cards != 0 {
+		t.Fatalf("default cards = %d, want auto (0)", cfg.Cards)
+	}
+	for _, cards := range []int{0, 1, 4, 8} {
+		candidate := cfg
+		candidate.Cards = cards
+		if err := Validate(&candidate); err != nil {
+			t.Fatalf("cards %d should validate: %v", cards, err)
+		}
+	}
+	for _, cards := range []int{-1, 9} {
+		candidate := cfg
+		candidate.Cards = cards
+		if err := Validate(&candidate); err == nil {
+			t.Fatalf("cards %d should fail validation", cards)
+		}
+	}
+}

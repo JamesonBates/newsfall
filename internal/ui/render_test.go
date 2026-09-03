@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"image"
 	"strings"
 	"testing"
@@ -135,4 +136,67 @@ func TestHeaderShowsTheActualUppercaseWeekdayAndMonth(t *testing.T) {
 	if !strings.Contains(plain, "09:53:29  THU 03 SEP") {
 		t.Fatalf("header date is not formatted from the current time:\n%s", strings.Split(plain, "\n")[0])
 	}
+}
+
+func TestRenderFixedCardCountAndAutoScalesWithTerminalHeight(t *testing.T) {
+	state := sampleState(150, 48)
+	articles := make([]model.Article, 0, 8)
+	for n := 1; n <= 8; n++ {
+		articles = append(articles, model.Article{
+			ID: fmt.Sprintf("story-%d", n), Title: fmt.Sprintf("CARD %d UNIQUE HEADLINE", n), URL: fmt.Sprintf("https://example.com/%d", n),
+			Source: "Signal Wire", PublishedAt: state.Now.Add(-time.Duration(n) * time.Minute),
+			Excerpt: "Enough detail to exercise adaptive rendering at several densities.", Categories: []string{"Test"},
+		})
+	}
+	for idx := range state.Columns {
+		state.Columns[idx].Articles = articles
+	}
+	state.Stream = articles
+	state.Config.Cards = 5
+	plain := RenderPlain(state)
+	for n := 1; n <= 5; n++ {
+		if !strings.Contains(plain, fmt.Sprintf("CARD %d UNIQUE", n)) {
+			t.Fatalf("fixed density missing card %d:\n%s", n, plain)
+		}
+	}
+	if strings.Contains(plain, "CARD 6 UNIQUE") {
+		t.Fatalf("fixed density rendered too many cards:\n%s", plain)
+	}
+
+	state.Config.Cards = 0
+	state.Height = 28
+	short := RenderPlain(state)
+	state.Height = 68
+	tall := RenderPlain(state)
+	if countVisibleTestCards(tall) <= countVisibleTestCards(short) {
+		t.Fatalf("auto density did not increase with height: short=%d tall=%d", countVisibleTestCards(short), countVisibleTestCards(tall))
+	}
+}
+
+func TestAdaptiveCardsDropArtworkAndExcerptAtHighDensity(t *testing.T) {
+	state := sampleState(92, 28)
+	articles := make([]model.Article, 8)
+	for n := range articles {
+		articles[n] = model.Article{ID: fmt.Sprintf("dense-%d", n), Title: fmt.Sprintf("DENSE CARD %d", n+1), URL: fmt.Sprintf("https://example.com/dense/%d", n+1), Source: "Wire", Excerpt: "EXCERPT SENTINEL SHOULD DISAPPEAR", PublishedAt: state.Now}
+	}
+	state.Config.Mode = "stream"
+	state.Config.Cards = 6
+	state.Stream = articles
+	plain := RenderPlain(state)
+	if strings.Contains(plain, "EXCERPT SENTINEL") {
+		t.Fatalf("dense cards should suppress excerpts:\n%s", plain)
+	}
+	if !strings.Contains(plain, "DENSE CARD 1") {
+		t.Fatalf("dense cards must retain headlines:\n%s", plain)
+	}
+}
+
+func countVisibleTestCards(rendered string) int {
+	count := 0
+	for n := 1; n <= 8; n++ {
+		if strings.Contains(rendered, fmt.Sprintf("CARD %d UNIQUE", n)) {
+			count++
+		}
+	}
+	return count
 }

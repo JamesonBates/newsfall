@@ -6,6 +6,7 @@
   "theme": "aurora",
   "images": true,
   "ambient": true,
+  "cards": 0,
   "max_items": 240,
   "max_per_column": 80,
   "columns": [

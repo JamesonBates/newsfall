@@ -221,16 +221,7 @@ func renderColumn(view ColumnView, width, height int, active bool, state State, 
 		return fitRows(lines, width, height)
 	}
 
-	slots := bodyHeight / maxInt(8, preferredCardHeight-2)
-	if slots < 1 {
-		slots = 1
-	}
-	if slots > 3 {
-		slots = 3
-	}
-	if slots > len(view.Articles) {
-		slots = len(view.Articles)
-	}
+	slots := visibleCardSlots(bodyHeight, len(view.Articles), preferredCardHeight, state.Config.Cards)
 	baseHeight := bodyHeight / slots
 	remainder := bodyHeight % slots
 	selected := normalizeIndex(view.Selected, len(view.Articles))
@@ -244,6 +235,33 @@ func renderColumn(view ColumnView, width, height int, active bool, state State, 
 		lines = append(lines, renderCard(view.Articles[index], width, cardHeight, isSelected, state, theme, colorEnabled)...)
 	}
 	return fitRows(lines, width, height)
+}
+
+func visibleCardSlots(bodyHeight, articleCount, preferredCardHeight, configured int) int {
+	if articleCount <= 0 {
+		return 0
+	}
+	slots := configured
+	if slots == 0 {
+		target := maxInt(9, preferredCardHeight-2)
+		slots = bodyHeight / target
+		if slots < 1 {
+			slots = 1
+		}
+	}
+	if slots > 8 {
+		slots = 8
+	}
+	if slots > bodyHeight {
+		slots = bodyHeight
+	}
+	if slots > articleCount {
+		slots = articleCount
+	}
+	if slots < 1 {
+		slots = 1
+	}
+	return slots
 }
 
 func columnSubline(view ColumnView, state State, width int) string {
@@ -262,7 +280,7 @@ func columnSubline(view ColumnView, state State, width int) string {
 }
 
 func renderCard(article model.Article, width, height int, selected bool, state State, theme Theme, colorEnabled bool) []string {
-	if height <= 2 || width <= 4 {
+	if height <= 5 || width <= 4 {
 		return renderCompactCard(article, width, height, selected, state, theme, colorEnabled)
 	}
 	borderColor := theme.Faint
@@ -363,7 +381,9 @@ func renderCompactCard(article model.Article, width, height int, selected bool, 
 	if selected {
 		border = theme.Accent2
 	}
-	values := []string{content.CleanText(article.Title), firstNonEmpty(content.CleanText(article.Source), ageLabel(state.Now, article.PublishedAt)), content.CleanText(article.URL)}
+	source := content.CleanText(firstNonEmpty(article.Source, article.FeedName, "Unknown source"))
+	meta := source + " · " + ageLabel(state.Now, article.PublishedAt)
+	values := []string{content.CleanText(article.Title), meta, content.CleanText(article.URL)}
 	lines := make([]string, 0, height)
 	for i := 0; i < height; i++ {
 		value := ""
@@ -502,7 +522,7 @@ func renderHelp(width, height int, theme Theme, colorEnabled bool) []string {
 		"h / l / ← / →     move between columns",
 		"enter or o         open the selected article",
 		"r refresh · e source errors · p pause · a ambient · m mode · i images",
-		"tab theme · : command · ? close help · q quit",
+		"[/] card density · 0 auto · tab theme · : command · ? close help · q quit",
 		"",
 		"CONFIGURATION",
 	}
@@ -583,7 +603,7 @@ func renderFooter(state State, layout Layout, theme Theme, colorEnabled bool) []
 	if state.CommandMode {
 		controlLine = renderCommandLine(state, layout.Width, theme, colorEnabled)
 	} else {
-		hints := " j/k scroll   h/l desk   ↵ open   m mode   r refresh"
+		hints := " j/k scroll   h/l desk   ↵ open   [/] cards   0 auto   m mode   r refresh"
 		if len(state.Errors) > 0 {
 			hints += "   e errors"
 		}

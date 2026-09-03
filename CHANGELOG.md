@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.3 — 2026-09-03
+
+- Add configurable visible-card density with `cards auto|1-8`.
+- Add `[` and `]` shortcuts to decrease/increase card density and `0` to return to automatic sizing.
+- Make automatic density scale with terminal height instead of capping every column at three cards.
+- Adapt card detail to available height so dense layouts preserve headlines/source/time while dropping artwork and excerpts first.
+- Persist the density setting in `config.json` and expose the controls in help/footer text.
+
 ## 0.1.2 — 2026-09-03
 
 - Accept ordinary website URLs in `feed add`, discover advertised RSS, Atom, or JSON Feed endpoints, and fall back to common feed paths.
