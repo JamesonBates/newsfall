@@ -117,3 +117,12 @@ func TestRenderEveryResponsiveBreakpointHasExactGeometry(t *testing.T) {
 		}
 	}
 }
+
+func TestHeaderShowsTheActualUppercaseWeekdayAndMonth(t *testing.T) {
+	state := sampleState(120, 30)
+	state.Now = time.Date(2026, 9, 3, 9, 53, 29, 0, time.Local)
+	plain := RenderPlain(state)
+	if !strings.Contains(plain, "09:53:29  THU 03 SEP") {
+		t.Fatalf("header date is not formatted from the current time:\n%s", strings.Split(plain, "\n")[0])
+	}
+}

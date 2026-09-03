@@ -261,7 +261,7 @@ func loadController(configPath, dataPath string, demo bool) (*Controller, string
 }
 
 func (r *runner) draw(now time.Time) error {
-	frame := ui.Render(r.view(now))
+	frame := strings.ReplaceAll(ui.Render(r.view(now)), "\n", "\r\n")
 	_, err := io.WriteString(r.stdout, term.HomeSequence+frame+"\x1b[0m")
 	return err
 }
@@ -401,11 +401,15 @@ func readKeys(ctx context.Context, stdin *os.File, output chan<- Key) {
 			if !emitKeys(ctx, output, decoder.Flush()) {
 				return
 			}
+			// With VMIN=0/VTIME>0, an idle terminal read returns zero bytes.
+			// os.File reports that timeout as io.EOF, but the terminal is still
+			// open and future keystrokes must continue to be read.
+			if err == io.EOF {
+				continue
+			}
 		}
 		if err != nil {
-			if err != io.EOF {
-				_ = emitKeys(ctx, output, decoder.Flush())
-			}
+			_ = emitKeys(ctx, output, decoder.Flush())
 			return
 		}
 	}

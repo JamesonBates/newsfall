@@ -67,6 +67,10 @@ go build -trimpath -ldflags='-s -w' -o "$HOME/.local/bin/newsfall" ./cmd/newsfal
 newsfall
 ```
 
+### Upgrading from 0.1.0
+
+Version 0.1.1 fixes two macOS/Warp defects in the first build: interactive input stopped after the terminal had been idle for roughly 100 ms, and raw-terminal rows were emitted without carriage returns, causing most of the deck to render against the right edge. Replace the old binary in place; your configuration and cached articles are preserved. If a 0.1.0 process is currently stuck, open another terminal tab and run `pkill newsfall` before installing the replacement.
+
 On first launch, Newsfall writes a readable JSON configuration and starts synchronizing the starter feeds. To explore the complete interface without network access or changing your config:
 
 ```sh

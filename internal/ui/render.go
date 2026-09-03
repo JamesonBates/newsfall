@@ -107,7 +107,7 @@ func renderHeader(state State, layout Layout, theme Theme, colorEnabled bool) []
 	}
 	brand := styleBold(colorEnabled, styleFG(colorEnabled, theme.Accent, "NEWSFALL"))
 	left := " " + brand + styleFG(colorEnabled, theme.Faint, "  //  SIGNAL DESK")
-	right := styleFG(colorEnabled, activityColor, activity) + styleFG(colorEnabled, theme.Muted, "  "+mode+"  "+state.Now.Format("15:04:05  MON 02 JAN")) + " "
+	right := styleFG(colorEnabled, activityColor, activity) + styleFG(colorEnabled, theme.Muted, "  "+mode+"  "+strings.ToUpper(state.Now.Format("15:04:05  Mon 02 Jan"))) + " "
 	first := joinSides(left, right, layout.Width)
 	if layout.HeaderHeight == 1 {
 		return []string{first}
