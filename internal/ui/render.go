@@ -501,7 +501,7 @@ func renderHelp(width, height int, theme Theme, colorEnabled bool) []string {
 		"j / k / ↑ / ↓     move through stories",
 		"h / l / ← / →     move between columns",
 		"enter or o         open the selected article",
-		"r refresh · p pause · a ambient · m mode · i images",
+		"r refresh · e source errors · p pause · a ambient · m mode · i images",
 		"tab theme · : command · ? close help · q quit",
 		"",
 		"CONFIGURATION",
@@ -558,7 +558,14 @@ func renderFooter(state State, layout Layout, theme Theme, colorEnabled bool) []
 		status = "ready"
 	}
 	if len(state.Errors) > 0 {
-		status += fmt.Sprintf(" · %d source errors", len(state.Errors))
+		if !strings.Contains(strings.ToLower(status), "press e") {
+			status += fmt.Sprintf(" · press e · %d source %s", len(state.Errors), func() string {
+				if len(state.Errors) == 1 {
+					return "error"
+				}
+				return "errors"
+			}())
+		}
 	}
 	left := " " + styleFG(colorEnabled, theme.Muted, status)
 	right := ""
@@ -576,7 +583,11 @@ func renderFooter(state State, layout Layout, theme Theme, colorEnabled bool) []
 	if state.CommandMode {
 		controlLine = renderCommandLine(state, layout.Width, theme, colorEnabled)
 	} else {
-		hints := " j/k scroll   h/l desk   ↵ open   m mode   r refresh   : command   ? help   q quit "
+		hints := " j/k scroll   h/l desk   ↵ open   m mode   r refresh"
+		if len(state.Errors) > 0 {
+			hints += "   e errors"
+		}
+		hints += "   : command   ? help   q quit "
 		controlLine = FitANSI(styleFG(colorEnabled, theme.Faint, hints), layout.Width)
 	}
 	return []string{statusLine, controlLine}

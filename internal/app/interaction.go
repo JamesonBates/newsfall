@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 	"unicode"
 
@@ -26,6 +27,7 @@ type Interaction struct {
 	CommandText  string
 	OverlayTitle string
 	OverlayLines []string
+	SourceErrors []string
 	Status       string
 }
 
@@ -111,6 +113,8 @@ func (i *Interaction) handleRune(r rune) Outcome {
 	case 'r':
 		i.Status = "refresh requested"
 		return Outcome{Refresh: true}
+	case 'e':
+		i.showSourceErrors()
 	case 'p':
 		i.Paused = !i.Paused
 		if i.Paused {
@@ -160,9 +164,15 @@ func (i *Interaction) handleCommandKey(key Key) Outcome {
 			return Outcome{}
 		}
 		parsed, parseErr := command.Parse(line)
+		if parseErr == nil && parsed.Name == "feed" && len(parsed.Args) == 1 && strings.EqualFold(parsed.Args[0], "errors") {
+			i.showSourceErrors()
+			return Outcome{}
+		}
 		next, effect, err := command.Execute(i.Controller.Config, line)
 		if err != nil {
-			i.Status = "command · " + err.Error()
+			i.Status = "command failed · " + err.Error()
+			i.OverlayTitle = "COMMAND ERROR"
+			i.OverlayLines = []string{err.Error(), "", "Press Esc to return, then use :help for command syntax."}
 			return Outcome{}
 		}
 		if effect.Save {
@@ -182,6 +192,19 @@ func (i *Interaction) handleCommandKey(key Key) Outcome {
 		}
 	}
 	return Outcome{}
+}
+
+func (i *Interaction) showSourceErrors() {
+	if len(i.SourceErrors) == 0 {
+		i.OverlayTitle = ""
+		i.OverlayLines = nil
+		i.Status = "no source errors from the latest refresh"
+		return
+	}
+	i.Help = false
+	i.OverlayTitle = "SOURCE ERRORS"
+	i.OverlayLines = append([]string(nil), i.SourceErrors...)
+	i.Status = fmt.Sprintf("%d source %s · press Esc to return", len(i.SourceErrors), plural(len(i.SourceErrors), "error", "errors"))
 }
 
 func (i *Interaction) openSelected() Outcome {

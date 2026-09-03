@@ -16,7 +16,7 @@ import (
 	"newsfall/internal/ui"
 )
 
-const Version = "0.1.1"
+const Version = "0.1.2"
 
 type options struct {
 	ConfigPath     string

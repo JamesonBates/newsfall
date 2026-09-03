@@ -6,6 +6,8 @@
 
 Newsfall continuously refreshes RSS, Atom, and JSON feeds; routes stories into topic columns; drifts through headlines while idle; and turns article images into compact true-color Unicode mosaics. When a story has no usable image, it generates deterministic cover art from the story metadata, so the screen still feels alive.
 
+You can paste an ordinary publication homepage into `feed add`. Newsfall first checks whether it is already a feed, then looks for advertised RSS, Atom, or JSON Feed links and a small set of conventional feed paths. Once found, the actual feed endpoint is saved automatically.
+
 ## What it does
 
 - Responsive **deck mode** with one to three independently filtered columns.
@@ -13,6 +15,7 @@ Newsfall continuously refreshes RSS, Atom, and JSON feeds; routes stories into t
 - Title, source, age, category chips, excerpt, visible URL, and OSC 8 clickable link on each selected card.
 - Actual article-image mosaics for JPEG, PNG, and GIF images, with colorful generated art as the fallback.
 - Cache-first startup: the last useful screen remains available when a source is slow or offline.
+- Website-to-feed discovery with persisted resolved endpoints and readable source diagnostics.
 - In-app commands for feeds, columns, topics, refresh cadence, drift cadence, themes, and images.
 - Four themes: `aurora`, `ember`, `ocean`, and `mono`.
 - No account, server, API key, database, or third-party runtime dependency.
@@ -67,9 +70,13 @@ go build -trimpath -ldflags='-s -w' -o "$HOME/.local/bin/newsfall" ./cmd/newsfal
 newsfall
 ```
 
-### Upgrading from 0.1.0
+### Upgrading
 
-Version 0.1.1 fixes two macOS/Warp defects in the first build: interactive input stopped after the terminal had been idle for roughly 100 ms, and raw-terminal rows were emitted without carriage returns, causing most of the deck to render against the right edge. Replace the old binary in place; your configuration and cached articles are preserved. If a 0.1.0 process is currently stuck, open another terminal tab and run `pkill newsfall` before installing the replacement.
+Version 0.1.2 makes source setup substantially more forgiving: ordinary website URLs are discovered automatically, multiword source names can be entered without quoting, and failed sources expose their exact error through `e` or `:feed errors`. Replace the binary in place; configuration and cached articles are preserved.
+
+Adding a source while the startup synchronization is still running now queues an immediate follow-up refresh. Earlier builds discarded that refresh request, which could make a correctly added source appear inert until the next scheduled cycle.
+
+Version 0.1.1 fixed two macOS/Warp defects in the first build: interactive input stopped after the terminal had been idle for roughly 100 ms, and raw-terminal rows were emitted without carriage returns, causing most of the deck to render against the right edge. If a 0.1.0 process is currently stuck, open another terminal tab and run `pkill newsfall` before replacing it.
 
 On first launch, Newsfall writes a readable JSON configuration and starts synchronizing the starter feeds. To explore the complete interface without network access or changing your config:
 
@@ -95,6 +102,7 @@ Newsfall uses the terminal's alternate screen, restores terminal settings on exi
 | `g` / `G` | Jump to the first / last story |
 | `enter` or `o` | Open the selected article in the default browser |
 | `r` | Refresh now |
+| `e` | Show complete source errors from the latest refresh |
 | `p` | Pause or resume refresh and ambient drift |
 | `a` | Toggle ambient drift |
 | `m` | Toggle deck / stream mode |
@@ -106,11 +114,14 @@ Newsfall uses the terminal's alternate screen, restores terminal settings on exi
 
 ## Configure it inside the app
 
-Press `:` and enter a command. Arguments containing spaces can be quoted.
+Press `:` and enter a command. The simplest source command is just a website or feed URL:
 
 ```text
 feed list
+feed add https://example.com
+feed add https://example.com Example Wire ai
 feed add https://example.com/feed.xml "Example Wire" ai
+feed errors
 feed remove "Example Wire"
 
 column list
@@ -129,6 +140,12 @@ images off
 ambient on
 reload
 help
+```
+
+Newsfall accepts either an actual RSS/Atom/JSON Feed URL or an ordinary website page. A multiword source name may be quoted, but it no longer has to be. If the final argument matches an existing column ID, Newsfall treats it as the column assignment; prefix it with `@` to make that intent explicit and receive an immediate error for a misspelled column:
+
+```text
+feed add https://example.com The Example Dispatch @ai
 ```
 
 A feed can be pinned to one or more columns by supplying comma-separated column IDs as the last `feed add` argument:
@@ -221,6 +238,8 @@ Newsfall understands:
 - JSON Feed 1.x
 
 Sources refresh concurrently with bounded concurrency and timeouts. One malformed or unavailable source is reported in the footer but does not blank the other columns or erase cached stories.
+
+When a source fails, the footer says `press e`. Press `e` or run `:feed errors` to open the complete diagnostic, including HTTP failures and whether Newsfall was unable to discover a usable feed from a webpage. Command syntax and configuration errors also open a visible error panel rather than disappearing into the status line.
 
 For article images, Newsfall deliberately uses terminal-independent ANSI/Unicode output rather than Kitty graphics, Sixel, or iTerm2 proprietary image escape sequences. JPEG, PNG, and GIF decode directly. AVIF and WebP images currently fall back to generated artwork so the application can remain a single zero-dependency binary.
 

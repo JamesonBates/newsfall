@@ -68,8 +68,29 @@ func TestInteractionShowsListResultsAndActionableCommandErrors(t *testing.T) {
 	interaction.CommandMode = true
 	interaction.CommandText = "theme radioactive"
 	outcome = interaction.Handle(Key{Kind: KeyEnter})
-	if outcome.SaveConfig || interaction.Status == "" {
-		t.Fatalf("invalid command = %#v status=%q", outcome, interaction.Status)
+	if outcome.SaveConfig || interaction.Status == "" || interaction.OverlayTitle != "COMMAND ERROR" || len(interaction.OverlayLines) == 0 {
+		t.Fatalf("invalid command = %#v status=%q title=%q lines=%#v", outcome, interaction.Status, interaction.OverlayTitle, interaction.OverlayLines)
+	}
+}
+
+func TestInteractionShowsSourceErrorsFromKeyOrCommand(t *testing.T) {
+	interaction := NewInteraction(controllerFixture())
+	interaction.SourceErrors = []string{
+		"Example: webpage has no discoverable RSS, Atom, or JSON Feed",
+		"Other: HTTP 403 Forbidden",
+	}
+
+	interaction.Handle(Key{Kind: KeyRune, Rune: 'e'})
+	if interaction.OverlayTitle != "SOURCE ERRORS" || len(interaction.OverlayLines) != 2 {
+		t.Fatalf("error overlay = %q %#v", interaction.OverlayTitle, interaction.OverlayLines)
+	}
+
+	interaction.Handle(Key{Kind: KeyEscape})
+	interaction.CommandMode = true
+	interaction.CommandText = "feed errors"
+	outcome := interaction.Handle(Key{Kind: KeyEnter})
+	if outcome.SaveConfig || outcome.Refresh || interaction.OverlayTitle != "SOURCE ERRORS" || len(interaction.OverlayLines) != 2 {
+		t.Fatalf("feed errors = %#v title=%q lines=%#v", outcome, interaction.OverlayTitle, interaction.OverlayLines)
 	}
 }
 

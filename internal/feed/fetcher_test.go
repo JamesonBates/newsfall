@@ -81,3 +81,97 @@ func TestFetcherHonorsCancelledContext(t *testing.T) {
 		t.Fatalf("errors = %#v", result.Errors)
 	}
 }
+
+func TestFetcherDiscoversLinkedFeedFromOrdinaryWebsiteURL(t *testing.T) {
+	mux := http.NewServeMux()
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, `<!doctype html><html><head>
+			<link title="Example RSS" href="/news.xml" type="application/rss+xml" rel="alternate">
+		</head><body>Example</body></html>`)
+	})
+	mux.HandleFunc("/news.xml", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/rss+xml")
+		fmt.Fprint(w, `<?xml version="1.0"?><rss version="2.0"><channel><title>Example Dispatch</title><item><guid>one</guid><title>Discovered story</title><link>`+server.URL+`/story</link></item></channel></rss>`)
+	})
+
+	result := NewFetcher().Fetch(context.Background(), []config.Feed{{Name: "Example", URL: server.URL + "/", Columns: []string{"ai"}}})
+	if len(result.Errors) != 0 || len(result.Articles) != 1 {
+		t.Fatalf("result = %#v", result)
+	}
+	if result.Articles[0].Title != "Discovered story" || result.Articles[0].ColumnHints[0] != "ai" {
+		t.Fatalf("article = %#v", result.Articles[0])
+	}
+	if len(result.Resolutions) != 1 || result.Resolutions[0].From != server.URL+"/" || result.Resolutions[0].To != server.URL+"/news.xml" {
+		t.Fatalf("resolutions = %#v", result.Resolutions)
+	}
+}
+
+func TestFetcherTriesCommonFeedPathsWhenHomepageHasNoLinkTag(t *testing.T) {
+	mux := http.NewServeMux()
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	mux.HandleFunc("/publication", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprint(w, `<!doctype html><html><body>Publication</body></html>`)
+	})
+	mux.HandleFunc("/feed", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/atom+xml")
+		fmt.Fprint(w, `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>Fallback Feed</title><entry><id>one</id><title>Fallback story</title><link href="/story"/></entry></feed>`)
+	})
+
+	result := NewFetcher().Fetch(context.Background(), []config.Feed{{Name: "Fallback", URL: server.URL + "/publication"}})
+	if len(result.Errors) != 0 || len(result.Articles) != 1 {
+		t.Fatalf("result = %#v", result)
+	}
+	if len(result.Resolutions) != 1 || result.Resolutions[0].To != server.URL+"/feed" {
+		t.Fatalf("resolutions = %#v", result.Resolutions)
+	}
+}
+
+func TestFetcherExplainsWhenWebsiteHasNoUsableFeed(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprint(w, `<!doctype html><html><body>No feed here</body></html>`)
+	}))
+	defer server.Close()
+
+	result := NewFetcher().Fetch(context.Background(), []config.Feed{{Name: "No Feed", URL: server.URL}})
+	if len(result.Errors) != 1 {
+		t.Fatalf("errors = %#v", result.Errors)
+	}
+	message := result.Errors[0].Error()
+	for _, want := range []string{"No Feed", server.URL, "webpage", "RSS", "feed URL"} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("error %q missing %q", message, want)
+		}
+	}
+}
+
+func TestFetcherBoundsTheEntireDiscoveryAttemptPerSource(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprint(w, `<!doctype html><html><body>Slow candidates</body></html>`)
+			return
+		}
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+
+	fetcher := NewFetcher()
+	fetcher.SourceTimeout = 80 * time.Millisecond
+	started := time.Now()
+	result := fetcher.Fetch(context.Background(), []config.Feed{{Name: "Slow Discovery", URL: server.URL}})
+	elapsed := time.Since(started)
+	if len(result.Errors) != 1 {
+		t.Fatalf("errors = %#v", result.Errors)
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("discovery took %s despite source timeout", elapsed)
+	}
+}

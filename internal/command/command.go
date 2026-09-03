@@ -107,30 +107,39 @@ func Apply(cfg config.Config, cmd Command) (config.Config, Effect, error) {
 
 func applyFeed(cfg config.Config, args []string) (config.Config, Effect, error) {
 	if len(args) == 0 {
-		return cfg, Effect{}, errors.New("usage: feed add|remove|list …")
+		return cfg, Effect{}, errors.New("usage: feed add|remove|list|errors …")
 	}
 	switch strings.ToLower(args[0]) {
 	case "add":
-		if len(args) < 2 || len(args) > 4 {
-			return cfg, Effect{}, errors.New("usage: feed add <url> [name] [column]")
+		if len(args) < 2 {
+			return cfg, Effect{}, errors.New("usage: feed add <site-or-feed-url> [name…] [column]")
 		}
 		u, err := url.Parse(strings.TrimSpace(args[1]))
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 			return cfg, Effect{}, fmt.Errorf("invalid feed URL %q", args[1])
 		}
 		definition := config.Feed{URL: u.String()}
-		if len(args) >= 3 {
-			definition.Name = strings.TrimSpace(args[2])
+		nameParts := append([]string(nil), args[2:]...)
+		if len(nameParts) > 0 {
+			last := nameParts[len(nameParts)-1]
+			columns, matched, matchErr := matchColumnToken(cfg.Columns, last)
+			if matchErr != nil {
+				return cfg, Effect{}, matchErr
+			}
+			if matched {
+				definition.Columns = columns
+				nameParts = nameParts[:len(nameParts)-1]
+			}
 		}
-		if len(args) == 4 {
-			definition.Columns = splitCSV(args[3])
+		if len(nameParts) > 0 {
+			definition.Name = strings.TrimSpace(strings.Join(nameParts, " "))
 		}
 		cfg.Feeds = append(cfg.Feeds, definition)
 		if err := config.Validate(&cfg); err != nil {
 			return cfg, Effect{}, err
 		}
 		name := cfg.Feeds[len(cfg.Feeds)-1].Name
-		return cfg, Effect{Save: true, Refresh: true, Message: "added feed " + name}, nil
+		return cfg, Effect{Save: true, Refresh: true, Message: "added source " + name + " · checking now"}, nil
 	case "remove", "rm", "delete":
 		if len(args) != 2 {
 			return cfg, Effect{}, errors.New("usage: feed remove <name-or-url>")
@@ -156,8 +165,13 @@ func applyFeed(cfg config.Config, args []string) (config.Config, Effect, error) 
 			lines = append(lines, fmt.Sprintf("%-20s %s%s", feed.Name, feed.URL, suffix))
 		}
 		return cfg, Effect{Output: lines, Message: fmt.Sprintf("%d feeds", len(lines))}, nil
+	case "errors":
+		if len(args) != 1 {
+			return cfg, Effect{}, errors.New("usage: feed errors")
+		}
+		return cfg, Effect{Message: "source errors are available in the live app · press e"}, nil
 	default:
-		return cfg, Effect{}, fmt.Errorf("unknown feed action %q; use add, remove, or list", args[0])
+		return cfg, Effect{}, fmt.Errorf("unknown feed action %q; use add, remove, list, or errors", args[0])
 	}
 }
 
@@ -386,6 +400,27 @@ func splitCSV(value string) []string {
 	return out
 }
 
+func matchColumnToken(columns []config.Column, value string) ([]string, bool, error) {
+	explicit := strings.HasPrefix(strings.TrimSpace(value), "@")
+	value = strings.TrimPrefix(strings.TrimSpace(value), "@")
+	ids := splitCSV(value)
+	if len(ids) == 0 {
+		if explicit {
+			return nil, false, errors.New("column selector after @ cannot be empty")
+		}
+		return nil, false, nil
+	}
+	for _, id := range ids {
+		if findColumn(columns, id) < 0 {
+			if explicit {
+				return nil, false, fmt.Errorf("column %q not found", id)
+			}
+			return nil, false, nil
+		}
+	}
+	return ids, true, nil
+}
+
 func removeFold(values []string, needle string) []string {
 	out := values[:0]
 	for _, value := range values {
@@ -423,9 +458,10 @@ func onOff(value bool) string {
 // HelpLines is shared by the command overlay and :help output.
 func HelpLines() []string {
 	return []string{
-		"feed add <url> [name] [column]    add and refresh a source",
+		"feed add <site-or-feed-url> [name…] [column]  discover, add, and refresh",
 		"feed remove <name-or-url>          remove a source",
 		"feed list                          show configured sources",
+		"feed errors                        show source failures",
 		"column add <id> <title> [topics…]  create a deck column",
 		"column remove <id>                 remove a deck column",
 		"column list                        show columns and filters",

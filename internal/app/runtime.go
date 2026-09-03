@@ -47,6 +47,10 @@ type runtimeModel struct {
 
 func (m *runtimeModel) view(now time.Time) ui.State {
 	controller := m.interaction.Controller
+	errors := m.errors
+	if len(m.interaction.SourceErrors) > 0 {
+		errors = m.interaction.SourceErrors
+	}
 	return ui.State{
 		Width: m.width, Height: m.height, Now: now, Config: controller.Config,
 		Columns: controller.Columns, Stream: controller.Articles,
@@ -55,27 +59,28 @@ func (m *runtimeModel) view(now time.Time) ui.State {
 		Loading: m.loading, Paused: m.interaction.Paused, Help: m.interaction.Help,
 		CommandMode: m.interaction.CommandMode, CommandText: m.interaction.CommandText,
 		OverlayTitle: m.interaction.OverlayTitle, OverlayLines: m.interaction.OverlayLines,
-		Status: m.interaction.Status, Errors: m.errors,
+		Status: m.interaction.Status, Errors: errors,
 		LastRefresh: m.lastRefresh, NextRefresh: m.nextRefresh, Tick: m.tick,
 	}
 }
 
 type runner struct {
 	runtimeModel
-	ctx          context.Context
-	configPath   string
-	dataPath     string
-	demo         bool
-	stdin        *os.File
-	stdout       io.Writer
-	fetcher      *feed.Fetcher
-	loader       *media.Loader
-	fetchResults chan feed.Result
-	imageResults chan imageResult
-	requested    map[string]bool
-	imageSem     chan struct{}
-	lastInput    time.Time
-	lastDrift    time.Time
+	ctx           context.Context
+	configPath    string
+	dataPath      string
+	demo          bool
+	stdin         *os.File
+	stdout        io.Writer
+	fetcher       *feed.Fetcher
+	loader        *media.Loader
+	fetchResults  chan feed.Result
+	imageResults  chan imageResult
+	requested     map[string]bool
+	imageSem      chan struct{}
+	refreshQueued bool
+	lastInput     time.Time
+	lastDrift     time.Time
 }
 
 type imageResult struct {
@@ -297,7 +302,8 @@ func (r *runner) applyOutcome(outcome Outcome, now time.Time) {
 
 func (r *runner) requestRefresh(now time.Time) {
 	if r.loading {
-		r.interaction.Status = "synchronization already in progress"
+		r.refreshQueued = true
+		r.interaction.Status = "synchronization in progress · another refresh is queued"
 		return
 	}
 	if r.demo {
@@ -329,16 +335,88 @@ func (r *runner) acceptFetch(result feed.Result, now time.Time) {
 	for _, item := range result.Errors {
 		r.errors = append(r.errors, item.Error())
 	}
+	r.interaction.SourceErrors = append(r.interaction.SourceErrors[:0], r.errors...)
 	newCount := 0
 	if len(result.Articles) > 0 {
 		newCount = r.interaction.Controller.Merge(result.Articles)
 	}
+	resolvedCount, resolutionErr := r.persistResolutions(result.Resolutions)
 	r.lastRefresh = now
 	r.nextRefresh = now.Add(config.RefreshDuration(r.interaction.Controller.Config))
 	r.interaction.Status = fetchStatus(len(r.interaction.Controller.Config.Feeds), result, newCount)
+	if len(result.Errors) > 0 {
+		r.interaction.Status += " · press e · " + result.Errors[0].Error()
+	}
+	if resolvedCount > 0 {
+		r.interaction.Status += fmt.Sprintf(" · discovered %d feed %s", resolvedCount, plural(resolvedCount, "endpoint", "endpoints"))
+	}
+	if resolutionErr != nil {
+		r.interaction.Status += " · could not save discovered feed URL"
+	}
 	if err := cache.Save(r.dataPath, r.interaction.Controller.Articles); err != nil {
 		r.interaction.Status += " · cache save failed"
 	}
+	if r.refreshQueued {
+		r.refreshQueued = false
+		r.requestRefresh(now)
+	}
+}
+
+func (r *runner) persistResolutions(resolutions []feed.Resolution) (int, error) {
+	if len(resolutions) == 0 {
+		return 0, nil
+	}
+	cfg := cloneRuntimeConfig(r.interaction.Controller.Config)
+	changed := 0
+	for _, resolution := range resolutions {
+		from := strings.TrimSpace(resolution.From)
+		to := strings.TrimSpace(resolution.To)
+		if from == "" || to == "" || equalFeedURL(from, to) {
+			continue
+		}
+		for index := range cfg.Feeds {
+			if !equalFeedURL(cfg.Feeds[index].URL, from) {
+				continue
+			}
+			cfg.Feeds[index].URL = to
+			changed++
+			break
+		}
+	}
+	if changed == 0 {
+		return 0, nil
+	}
+	if err := config.Validate(&cfg); err != nil {
+		return 0, err
+	}
+	if err := config.Save(r.configPath, cfg); err != nil {
+		return 0, err
+	}
+	r.interaction.Controller.SetConfig(cfg)
+	return changed, nil
+}
+
+func cloneRuntimeConfig(cfg config.Config) config.Config {
+	out := cfg
+	out.Columns = make([]config.Column, len(cfg.Columns))
+	for index, column := range cfg.Columns {
+		out.Columns[index] = column
+		out.Columns[index].Include = append([]string(nil), column.Include...)
+		out.Columns[index].Exclude = append([]string(nil), column.Exclude...)
+	}
+	out.Feeds = make([]config.Feed, len(cfg.Feeds))
+	for index, definition := range cfg.Feeds {
+		out.Feeds[index] = definition
+		out.Feeds[index].Columns = append([]string(nil), definition.Columns...)
+		out.Feeds[index].Tags = append([]string(nil), definition.Tags...)
+	}
+	return out
+}
+
+func equalFeedURL(left, right string) bool {
+	left = strings.TrimRight(strings.TrimSpace(left), "/")
+	right = strings.TrimRight(strings.TrimSpace(right), "/")
+	return strings.EqualFold(left, right)
 }
 
 func (r *runner) advanceTimers(now time.Time) {

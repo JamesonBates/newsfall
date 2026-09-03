@@ -47,7 +47,7 @@ func TestRunAppliesNoninteractiveConfigurationCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(loaded.Feeds) != 1 || loaded.Feeds[0].Name != "Example Wire" || !strings.Contains(stdout.String(), "added feed") {
+	if len(loaded.Feeds) != 1 || loaded.Feeds[0].Name != "Example Wire" || !strings.Contains(stdout.String(), "added source") {
 		t.Fatalf("loaded=%#v stdout=%q", loaded, stdout.String())
 	}
 }

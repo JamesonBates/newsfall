@@ -3,7 +3,6 @@ package feed
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -22,19 +21,34 @@ type FeedError struct {
 	Err  error
 }
 
-func (e FeedError) Error() string { return fmt.Sprintf("%s: %v", e.Feed, e.Err) }
+func (e FeedError) Error() string {
+	if strings.TrimSpace(e.URL) == "" {
+		return fmt.Sprintf("%s: %v", e.Feed, e.Err)
+	}
+	return fmt.Sprintf("%s [%s]: %v", e.Feed, e.URL, e.Err)
+}
+
+// Resolution records a website or redirect URL that Newsfall resolved to the
+// actual feed endpoint. The runtime persists it so discovery is paid only once.
+type Resolution struct {
+	Feed string
+	From string
+	To   string
+}
 
 type Result struct {
-	Articles []model.Article
-	Errors   []FeedError
-	Started  time.Time
-	Finished time.Time
+	Articles    []model.Article
+	Errors      []FeedError
+	Resolutions []Resolution
+	Started     time.Time
+	Finished    time.Time
 }
 
 type Fetcher struct {
 	Client        *http.Client
 	MaxConcurrent int
 	MaxBodyBytes  int64
+	SourceTimeout time.Duration
 }
 
 func NewFetcher() *Fetcher {
@@ -42,6 +56,7 @@ func NewFetcher() *Fetcher {
 		Client:        &http.Client{Timeout: 12 * time.Second},
 		MaxConcurrent: 6,
 		MaxBodyBytes:  8 << 20,
+		SourceTimeout: 15 * time.Second,
 	}
 }
 
@@ -63,6 +78,10 @@ func (f *Fetcher) Fetch(ctx context.Context, feeds []config.Feed) Result {
 	if maxBody <= 0 {
 		maxBody = 8 << 20
 	}
+	sourceTimeout := f.SourceTimeout
+	if sourceTimeout <= 0 {
+		sourceTimeout = 15 * time.Second
+	}
 	sem := make(chan struct{}, maxConcurrent)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -80,7 +99,9 @@ func (f *Fetcher) Fetch(ctx context.Context, feeds []config.Feed) Result {
 				mu.Unlock()
 				return
 			}
-			articles, err := fetchOne(ctx, client, maxBody, definition)
+			sourceCtx, cancel := context.WithTimeout(ctx, sourceTimeout)
+			articles, resolvedURL, err := fetchOne(sourceCtx, client, maxBody, definition)
+			cancel()
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -88,6 +109,9 @@ func (f *Fetcher) Fetch(ctx context.Context, feeds []config.Feed) Result {
 				return
 			}
 			result.Articles = append(result.Articles, articles...)
+			if !sameURL(definition.URL, resolvedURL) {
+				result.Resolutions = append(result.Resolutions, Resolution{Feed: definition.Name, From: definition.URL, To: resolvedURL})
+			}
 		}()
 	}
 	wg.Wait()
@@ -96,31 +120,10 @@ func (f *Fetcher) Fetch(ctx context.Context, feeds []config.Feed) Result {
 	return result
 }
 
-func fetchOne(ctx context.Context, client *http.Client, maxBody int64, definition config.Feed) ([]model.Article, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, definition.URL, nil)
+func fetchOne(ctx context.Context, client *http.Client, maxBody int64, definition config.Feed) ([]model.Article, string, error) {
+	parsed, resolvedURL, err := loadParsedFeed(ctx, client, maxBody, definition.URL)
 	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Accept", "application/rss+xml, application/atom+xml, application/feed+json, application/json, text/xml, application/xml;q=0.9, */*;q=0.5")
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return nil, fmt.Errorf("HTTP %s", resp.Status)
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBody+1))
-	if err != nil {
-		return nil, err
-	}
-	if int64(len(body)) > maxBody {
-		return nil, fmt.Errorf("feed exceeds %d bytes", maxBody)
-	}
-	parsed, err := parseDocument(body)
-	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	now := time.Now().UTC()
 	feedName := strings.TrimSpace(definition.Name)
@@ -133,7 +136,7 @@ func fetchOne(ctx context.Context, client *http.Client, maxBody int64, definitio
 		if title == "" {
 			continue
 		}
-		link := resolve(definition.URL, item.URL)
+		link := resolve(resolvedURL, item.URL)
 		if canonical := model.CanonicalURL(link); canonical != "" {
 			link = canonical
 		}
@@ -142,7 +145,7 @@ func fetchOne(ctx context.Context, client *http.Client, maxBody int64, definitio
 			published = now
 		}
 		excerpt := content.Excerpt(item.Excerpt, 500)
-		imageURL := resolve(firstNonEmpty(link, definition.URL), item.ImageURL)
+		imageURL := resolve(firstNonEmpty(link, resolvedURL), item.ImageURL)
 		source := content.CleanText(item.Source)
 		if source == "" {
 			source = feedName
@@ -162,5 +165,5 @@ func fetchOne(ctx context.Context, client *http.Client, maxBody int64, definitio
 			FetchedAt:   now,
 		})
 	}
-	return articles, nil
+	return articles, resolvedURL, nil
 }

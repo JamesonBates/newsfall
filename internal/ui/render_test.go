@@ -90,6 +90,16 @@ func TestRenderOverlayShowsCommandResults(t *testing.T) {
 	}
 }
 
+func TestRenderFooterAdvertisesSourceErrorDetails(t *testing.T) {
+	state := sampleState(120, 30)
+	state.Errors = []string{"Example: HTTP 403 Forbidden"}
+	state.Status = "5/6 feeds · 1 error"
+	plain := RenderPlain(state)
+	if !strings.Contains(plain, "press e") || !strings.Contains(plain, "e errors") {
+		t.Fatalf("source-error controls missing:\n%s", plain)
+	}
+}
+
 func TestRenderEveryResponsiveBreakpointHasExactGeometry(t *testing.T) {
 	widths := []int{1, 20, 55, 56, 85, 86, 131, 132, 180}
 	heights := []int{1, 5, 11, 17, 18, 40}

@@ -63,6 +63,45 @@ func TestApplyAddsAndRemovesFeedWithoutMutatingInput(t *testing.T) {
 	}
 }
 
+func TestApplyFeedAddAcceptsWebsiteURLAndUnquotedSourceName(t *testing.T) {
+	cfg := config.Config{
+		Columns: []config.Column{{ID: "ai", Title: "AI"}, {ID: "cars", Title: "CARS"}},
+	}
+	if err := config.Validate(&cfg); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+
+	got, effect, err := Execute(cfg, `feed add https://example.com The Example Dispatch ai`)
+	if err != nil {
+		t.Fatalf("feed add: %v", err)
+	}
+	if len(got.Feeds) != 1 {
+		t.Fatalf("feeds = %#v", got.Feeds)
+	}
+	feed := got.Feeds[0]
+	if feed.URL != "https://example.com" || feed.Name != "The Example Dispatch" || !reflect.DeepEqual(feed.Columns, []string{"ai"}) {
+		t.Fatalf("feed = %#v", feed)
+	}
+	if !effect.Save || !effect.Refresh || !strings.Contains(effect.Message, "checking") {
+		t.Fatalf("effect = %#v", effect)
+	}
+}
+
+func TestApplyFeedAddInfersAColumnWhenNameIsOmitted(t *testing.T) {
+	cfg := config.Config{Columns: []config.Column{{ID: "ai", Title: "AI"}}}
+	if err := config.Validate(&cfg); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+
+	got, _, err := Execute(cfg, `feed add https://example.com ai`)
+	if err != nil {
+		t.Fatalf("feed add: %v", err)
+	}
+	if len(got.Feeds) != 1 || got.Feeds[0].Name != "example.com" || !reflect.DeepEqual(got.Feeds[0].Columns, []string{"ai"}) {
+		t.Fatalf("feeds = %#v", got.Feeds)
+	}
+}
+
 func TestApplyManagesColumnsAndTopics(t *testing.T) {
 	cfg := config.Config{}
 	cfg, _, err := Execute(cfg, `column add science "SCIENCE DESK" space climate`)
@@ -140,9 +179,13 @@ func TestApplyListsAndReportsActionableErrors(t *testing.T) {
 	if err != nil || len(effect.Output) != len(cfg.Columns) {
 		t.Fatalf("column list: %#v %v", effect, err)
 	}
+	_, effect, err = Execute(cfg, "feed errors")
+	if err != nil || !strings.Contains(effect.Message, "live app") {
+		t.Fatalf("feed errors: %#v %v", effect, err)
+	}
 	for _, line := range []string{
 		"feed add not-a-url bad ai",
-		"feed add https://example.com/rss bad missing",
+		"feed add https://example.com/rss bad @missing",
 		"topic add missing ai",
 		"theme neon",
 		"refresh 2s",
